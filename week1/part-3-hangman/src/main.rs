@@ -17,6 +17,7 @@ use rand::Rng;
 use std::fs;
 use std::io;
 use std::io::Write;
+use std::iter::FromIterator;
 
 const NUM_INCORRECT_GUESSES: u32 = 5;
 const WORDS_PATH: &str = "words.txt";
@@ -34,7 +35,55 @@ fn main() {
     // secret_word by doing secret_word_chars[i].
     let secret_word_chars: Vec<char> = secret_word.chars().collect();
     // Uncomment for debugging:
-    // println!("random word: {}", secret_word);
+    println!("random word: {}", secret_word);
 
     // Your code here! :)
+    let mut guessed_word: String = "-".repeat(secret_word.len());
+    let mut guessed_chars: Vec<char> = Vec::new();
+    let mut incorrect_guesses: u32 = 0;
+
+    println!("Welcome to CS110L Hangman!");
+
+    while incorrect_guesses < NUM_INCORRECT_GUESSES && guessed_word != secret_word {
+        println!("The word so far is {}", guessed_word);
+        println!(
+            "You have guessed the following letters: {}",
+            String::from_iter(guessed_chars.iter())
+        );
+        println!(
+            "You have {} guesses left",
+            NUM_INCORRECT_GUESSES - incorrect_guesses
+        );
+        print!("Please guess a letter: ");
+        io::stdout().flush().expect("Error flushing stdout.");
+        let mut guess_line = String::new();
+        io::stdin()
+            .read_line(&mut guess_line)
+            .expect("Error reading line.");
+        let guess_char: char = guess_line.trim().chars().next().unwrap();
+        guessed_chars.push(guess_char);
+
+        if secret_word_chars.contains(&guess_char) {
+            for i in 0..secret_word.len() {
+                if secret_word_chars[i] == guess_char {
+                    guessed_word.replace_range(i..=i, &guess_char.to_string());
+                    // keep doing this until all occurrences of guess_char are replaced
+                }
+            }
+        } else {
+            println!("Sorry, that letter is not in the word");
+            incorrect_guesses += 1;
+        }
+
+        println!();
+    }
+
+    if guessed_word == secret_word {
+        println!(
+            "Congratulations you guessed the secret word: {}!",
+            secret_word
+        );
+    } else {
+        println!("Sorry, you ran out of guesses!");
+    }
 }
