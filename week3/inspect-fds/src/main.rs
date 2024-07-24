@@ -16,7 +16,8 @@ fn main() {
         eprintln!("Target {} did not match any running PIDs or executables", target);
         std::process::exit(1);
     }
-    println!("Found pid {}", target_process.unwrap().pid);
+    // println!("Found pid {}", target_process.unwrap().pid);
+    target_process.unwrap().print();
 }
 
 #[cfg(test)]
