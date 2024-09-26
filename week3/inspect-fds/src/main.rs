@@ -13,11 +13,21 @@ fn main() {
     let target = &args[1];
     let target_process = ps_utils::get_target(target).expect("Error finding target");
     if target_process.is_none() {
-        eprintln!("Target {} did not match any running PIDs or executables", target);
+        eprintln!(
+            "Target {} did not match any running PIDs or executables",
+            target
+        );
         std::process::exit(1);
     }
     // println!("Found pid {}", target_process.unwrap().pid);
-    target_process.unwrap().print();
+    let target_process = target_process.unwrap();
+    target_process.print();
+
+    for child_process in
+        ps_utils::get_child_processes(target_process.pid).expect("Failed to get child processes.")
+    {
+        child_process.print();
+    }
 }
 
 #[cfg(test)]
