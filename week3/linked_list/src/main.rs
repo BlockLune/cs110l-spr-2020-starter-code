@@ -24,8 +24,16 @@ fn main() {
     let list_3 = list_2.clone();
     assert_eq!(list_2, list_3);
 
+    println!("---");
+
     // If you implement iterator trait:
-    //for val in &list {
-    //    println!("{}", val);
-    //}
+    for val in &list {
+        println!("{}", val);
+    }
+
+    println!("---");
+
+    for val in list_2 {
+        println!("{}", val);
+    }
 }
