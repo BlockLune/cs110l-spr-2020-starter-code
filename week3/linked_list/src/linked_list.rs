@@ -1,11 +1,13 @@
 use std::fmt;
 use std::option::Option;
 
+#[derive(Debug)]
 pub struct LinkedList<T> {
     head: Option<Box<Node<T>>>,
     size: usize,
 }
 
+#[derive(Debug)]
 struct Node<T> {
     value: T,
     next: Option<Box<Node<T>>>,
@@ -13,10 +15,7 @@ struct Node<T> {
 
 impl<T> Node<T> {
     pub fn new(value: T, next: Option<Box<Node<T>>>) -> Node<T> {
-        Node {
-            value: value,
-            next: next,
-        }
+        Node { value, next }
     }
 }
 
@@ -67,6 +66,37 @@ where
             }
         }
         write!(f, "{}", result)
+    }
+}
+
+impl<T> PartialEq for LinkedList<T>
+where
+    T: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        if self.get_size() != other.get_size() {
+            return false;
+        }
+        let mut self_cur: &Option<Box<Node<T>>> = &self.head;
+        let mut other_cur: &Option<Box<Node<T>>> = &other.head;
+        loop {
+            match self_cur {
+                Some(self_node) => {
+                    match other_cur {
+                        Some(other_node) => {
+                            if self_node.value != other_node.value {
+                                return false;
+                            }
+                            other_cur = &other_node.next;
+                        }
+                        None => break,
+                    }
+                    self_cur = &self_node.next;
+                }
+                None => break,
+            }
+        }
+        true
     }
 }
 

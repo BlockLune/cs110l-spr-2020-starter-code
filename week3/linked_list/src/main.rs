@@ -15,6 +15,12 @@ fn main() {
     println!("size: {}", list.get_size());
     println!("{}", list.to_string()); // ToString impl for anything impl Display
 
+    let mut list_2: LinkedList<String> = LinkedList::new();
+    for i in 1..11 {
+        list_2.push_front(i.to_string());
+    }
+    assert_eq!(list, list_2);
+
     // If you implement iterator trait:
     //for val in &list {
     //    println!("{}", val);
