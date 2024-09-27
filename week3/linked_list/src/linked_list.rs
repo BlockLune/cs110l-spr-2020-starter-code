@@ -77,26 +77,19 @@ where
         if self.get_size() != other.get_size() {
             return false;
         }
-        let mut self_cur: &Option<Box<Node<T>>> = &self.head;
-        let mut other_cur: &Option<Box<Node<T>>> = &other.head;
-        loop {
-            match self_cur {
-                Some(self_node) => {
-                    match other_cur {
-                        Some(other_node) => {
-                            if self_node.value != other_node.value {
-                                return false;
-                            }
-                            other_cur = &other_node.next;
-                        }
-                        None => break,
-                    }
-                    self_cur = &self_node.next;
-                }
-                None => break,
+
+        let mut self_cur = &self.head;
+        let mut other_cur = &other.head;
+
+        while let (Some(self_node), Some(other_node)) = (self_cur, other_cur) {
+            if self_node.value != other_node.value {
+                return false;
             }
+            self_cur = &self_node.next;
+            other_cur = &other_node.next;
         }
-        true
+
+        self_cur.is_none() && other_cur.is_none()
     }
 }
 
