@@ -1,13 +1,13 @@
 use std::fmt;
 use std::option::Option;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LinkedList<T> {
     head: Option<Box<Node<T>>>,
     size: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Node<T> {
     value: T,
     next: Option<Box<Node<T>>>,
