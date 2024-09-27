@@ -152,3 +152,15 @@ where
     }
 }
 // `for x in &v` ends
+
+pub trait ComputeNorm {
+    fn compute_norm(&self) -> f64 {
+        0.0
+    }
+}
+
+impl ComputeNorm for LinkedList<f64> {
+    fn compute_norm(&self) -> f64 {
+        self.into_iter().map(|x| x * x).sum::<f64>().sqrt()
+    }
+}
