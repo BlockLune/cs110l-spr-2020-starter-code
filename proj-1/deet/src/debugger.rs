@@ -5,12 +5,22 @@ use rustyline::error::ReadlineError;
 use rustyline::history::FileHistory;
 use rustyline::Editor;
 
+fn parse_address(addr: &str) -> Option<usize> {
+    let addr_without_0x = if addr.to_lowercase().starts_with("0x") {
+        &addr[2..]
+    } else {
+        &addr
+    };
+    usize::from_str_radix(addr_without_0x, 16).ok()
+}
+
 pub struct Debugger {
     target: String,
     history_path: String,
     readline: Editor<(), FileHistory>,
     inferior: Option<Inferior>,
     dwarf_data: DwarfData,
+    breakpoints: Vec<usize>,
 }
 
 impl Debugger {
@@ -29,6 +39,9 @@ impl Debugger {
             }
         };
 
+        // FOR TEST
+        debug_data.print();
+
         let history_path = format!("{}/.deet_history", std::env::var("HOME").unwrap());
         let mut readline = Editor::<(), FileHistory>::new().expect("Failed to create Editor");
         // Attempt to load history from ~/.deet_history if it exists
@@ -40,6 +53,7 @@ impl Debugger {
             readline,
             inferior: None,
             dwarf_data: debug_data,
+            breakpoints: Vec::new(),
         }
     }
 
@@ -53,7 +67,7 @@ impl Debugger {
                 DebuggerCommand::Run(args) => {
                     self.clean();
 
-                    if let Some(inferior) = Inferior::new(&self.target, &args) {
+                    if let Some(inferior) = Inferior::new(&self.target, &args, &self.breakpoints) {
                         // Create the inferior
                         self.inferior = Some(inferior);
                         self.wake_and_wait();
@@ -74,6 +88,18 @@ impl Debugger {
                         .as_mut()
                         .unwrap()
                         .print_backtrace(&self.dwarf_data);
+                }
+                DebuggerCommand::Break(arg) => {
+                    if arg.starts_with("*") {
+                        let addr_without_0x =
+                            parse_address(&arg[1..]).expect("Failed to parse the address");
+                        println!(
+                            "Set breakpoint {} at {:#x}",
+                            self.breakpoints.len(),
+                            addr_without_0x
+                        );
+                        self.breakpoints.push(addr_without_0x);
+                    }
                 }
             }
         }
