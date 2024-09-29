@@ -34,6 +34,7 @@ impl Debugger {
             match self.get_next_command() {
                 DebuggerCommand::Quit => {
                     self.clean();
+                    return;
                 }
                 DebuggerCommand::Run(args) => {
                     self.clean();
