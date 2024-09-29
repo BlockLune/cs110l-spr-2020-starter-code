@@ -69,7 +69,8 @@ impl Debugger {
                     }
                 }
                 DebuggerCommand::Backtrace => {
-                    self.inferior
+                    let _ = self
+                        .inferior
                         .as_mut()
                         .unwrap()
                         .print_backtrace(&self.dwarf_data);
@@ -84,8 +85,10 @@ impl Debugger {
         // to the Inferior object
         match self.inferior.as_mut().unwrap().wake_and_wait() {
             Ok(status) => match status {
-                Status::Stopped(signal, _) => {
-                    println!("Child stopped (signal {})", signal.as_str())
+                Status::Stopped(signal, instruction_ptr) => {
+                    println!("Child stopped (signal {})", signal.as_str());
+                    let line_number = self.dwarf_data.get_line_from_addr(instruction_ptr).unwrap();
+                    println!("Stopped at {}", line_number);
                 }
                 Status::Exited(code) => {
                     println!("Child exited (status {})", code);
