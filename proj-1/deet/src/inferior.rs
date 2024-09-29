@@ -1,3 +1,4 @@
+use crate::dwarf_data::DwarfData;
 use nix::sys::ptrace;
 use nix::sys::signal;
 use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
@@ -82,9 +83,25 @@ impl Inferior {
         self.child.kill()
     }
 
-    pub fn print_backtrace(&self) -> Result<(), nix::Error> {
+    pub fn print_backtrace(&self, dwarf_data: &DwarfData) -> Result<(), nix::Error> {
         let regs = ptrace::getregs(self.pid())?;
-        println!("%rip register: {:#x}", regs.rip as usize);
+        let mut instruction_ptr = regs.rip as usize;
+        let mut base_ptr = regs.rbp as usize;
+
+        loop {
+            let line_number = dwarf_data.get_line_from_addr(instruction_ptr).unwrap();
+            let function_name = dwarf_data.get_function_from_addr(instruction_ptr).unwrap();
+            println!("{} ({})", function_name, line_number);
+
+            if function_name == "main" {
+                break;
+            }
+
+            instruction_ptr =
+                ptrace::read(self.pid(), (base_ptr + 8) as ptrace::AddressType)? as usize;
+            base_ptr = ptrace::read(self.pid(), base_ptr as ptrace::AddressType)? as usize;
+        }
+
         Ok(())
     }
 }
