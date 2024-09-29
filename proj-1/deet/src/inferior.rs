@@ -83,6 +83,8 @@ impl Inferior {
     }
 
     pub fn print_backtrace(&self) -> Result<(), nix::Error> {
-        !unimplemented!();
+        let regs = ptrace::getregs(self.pid())?;
+        println!("%rip register: {:#x}", regs.rip as usize);
+        Ok(())
     }
 }
