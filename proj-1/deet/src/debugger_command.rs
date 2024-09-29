@@ -16,7 +16,7 @@ impl DebuggerCommand {
                 ))
             }
             "c" | "cont" | "continue" => Some(DebuggerCommand::Continue),
-            "b" | "back" | "backtrace" => Some(DebuggerCommand::Backtrace),
+            "bt" | "back" | "backtrace" => Some(DebuggerCommand::Backtrace),
             // Default case:
             _ => None,
         }
