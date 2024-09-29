@@ -76,4 +76,9 @@ impl Inferior {
             other => panic!("waitpid returned unexpected status: {:?}", other),
         })
     }
+
+    /// Kills this inferior.
+    pub fn kill(&mut self) -> Result<(), std::io::Error> {
+        self.child.kill()
+    }
 }

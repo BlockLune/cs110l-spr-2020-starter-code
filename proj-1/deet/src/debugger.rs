@@ -1,8 +1,8 @@
 use crate::debugger_command::DebuggerCommand;
 use crate::inferior::{Inferior, Status};
 use rustyline::error::ReadlineError;
-use rustyline::Editor;
 use rustyline::history::FileHistory;
+use rustyline::Editor;
 
 pub struct Debugger {
     target: String,
@@ -33,6 +33,8 @@ impl Debugger {
         loop {
             match self.get_next_command() {
                 DebuggerCommand::Run(args) => {
+                    self.clean();
+
                     if let Some(inferior) = Inferior::new(&self.target, &args) {
                         // Create the inferior
                         self.inferior = Some(inferior);
@@ -42,14 +44,14 @@ impl Debugger {
                         // to the Inferior object
                         match self.inferior.as_mut().unwrap().wake_and_wait() {
                             Ok(status) => match status {
-                                Status::Stopped(_, _) => {
-                                    println!("Child stopped")
+                                Status::Stopped(signal, _) => {
+                                    println!("Child stopped (signal {})", signal.as_str())
                                 }
                                 Status::Exited(code) => {
                                     println!("Child exited (status {})", code);
                                 }
-                                Status::Signaled(_) => {
-                                    println!("Child signaled");
+                                Status::Signaled(signal) => {
+                                    println!("Child signaled (signal {})", signal.as_str());
                                 }
                             },
                             Err(_) => println!("Error waking up the inferior and waiting"),
@@ -58,9 +60,28 @@ impl Debugger {
                         println!("Error starting subprocess");
                     }
                 }
-                DebuggerCommand::Quit => {
-                    return;
+                DebuggerCommand::Continue() => {
+                    if self.inferior.is_none() {
+                        println!("Inferior is not running");
+                    } else {
+                        self.inferior.as_mut().unwrap().wake_and_wait();
+                    }
                 }
+                DebuggerCommand::Quit => {
+                    self.clean();
+                }
+            }
+        }
+    }
+
+    /// Kills any existing inferiors
+    fn clean(&mut self) {
+        if self.inferior.is_some() {
+            let inferior_refmut = self.inferior.as_mut().unwrap();
+            println!("Killing running inferior (pid {})", inferior_refmut.pid());
+            match inferior_refmut.kill() {
+                Ok(_) => println!("Killed"),
+                Err(e) => println!("Failed to kill: {}", e),
             }
         }
     }
