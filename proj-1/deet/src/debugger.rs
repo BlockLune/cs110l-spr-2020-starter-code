@@ -32,6 +32,9 @@ impl Debugger {
     pub fn run(&mut self) {
         loop {
             match self.get_next_command() {
+                DebuggerCommand::Quit => {
+                    self.clean();
+                }
                 DebuggerCommand::Run(args) => {
                     self.clean();
 
@@ -60,15 +63,15 @@ impl Debugger {
                         println!("Error starting subprocess");
                     }
                 }
-                DebuggerCommand::Continue() => {
+                DebuggerCommand::Continue => {
                     if self.inferior.is_none() {
                         println!("Inferior is not running");
                     } else {
                         self.inferior.as_mut().unwrap().wake_and_wait();
                     }
                 }
-                DebuggerCommand::Quit => {
-                    self.clean();
+                DebuggerCommand::Backtrace => {
+                    self.inferior.as_mut().unwrap().print_backtrace();
                 }
             }
         }

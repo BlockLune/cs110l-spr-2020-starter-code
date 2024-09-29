@@ -81,4 +81,8 @@ impl Inferior {
     pub fn kill(&mut self) -> Result<(), std::io::Error> {
         self.child.kill()
     }
+
+    pub fn print_backtrace(&self) -> Result<(), nix::Error> {
+        !unimplemented!();
+    }
 }
