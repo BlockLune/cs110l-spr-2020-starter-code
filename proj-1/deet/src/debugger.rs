@@ -42,24 +42,7 @@ impl Debugger {
                     if let Some(inferior) = Inferior::new(&self.target, &args) {
                         // Create the inferior
                         self.inferior = Some(inferior);
-
-                        // milestone 1: make the inferior run
-                        // You may use self.inferior.as_mut().unwrap() to get a mutable reference
-                        // to the Inferior object
-                        match self.inferior.as_mut().unwrap().wake_and_wait() {
-                            Ok(status) => match status {
-                                Status::Stopped(signal, _) => {
-                                    println!("Child stopped (signal {})", signal.as_str())
-                                }
-                                Status::Exited(code) => {
-                                    println!("Child exited (status {})", code);
-                                }
-                                Status::Signaled(signal) => {
-                                    println!("Child signaled (signal {})", signal.as_str());
-                                }
-                            },
-                            Err(_) => println!("Error waking up the inferior and waiting"),
-                        }
+                        self.wake_and_wait();
                     } else {
                         println!("Error starting subprocess");
                     }
@@ -68,13 +51,33 @@ impl Debugger {
                     if self.inferior.is_none() {
                         println!("Inferior is not running");
                     } else {
-                        self.inferior.as_mut().unwrap().wake_and_wait();
+                        self.wake_and_wait();
                     }
                 }
                 DebuggerCommand::Backtrace => {
                     self.inferior.as_mut().unwrap().print_backtrace();
                 }
             }
+        }
+    }
+
+    fn wake_and_wait(&mut self) {
+        // Milestone 1: make the inferior run
+        // You may use self.inferior.as_mut().unwrap() to get a mutable reference
+        // to the Inferior object
+        match self.inferior.as_mut().unwrap().wake_and_wait() {
+            Ok(status) => match status {
+                Status::Stopped(signal, _) => {
+                    println!("Child stopped (signal {})", signal.as_str())
+                }
+                Status::Exited(code) => {
+                    println!("Child exited (status {})", code);
+                }
+                Status::Signaled(signal) => {
+                    println!("Child signaled (signal {})", signal.as_str());
+                }
+            },
+            Err(_) => println!("Error waking up the inferior and waiting"),
         }
     }
 
