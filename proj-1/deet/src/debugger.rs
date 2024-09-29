@@ -2,11 +2,12 @@ use crate::debugger_command::DebuggerCommand;
 use crate::inferior::{Inferior, Status};
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
+use rustyline::history::FileHistory;
 
 pub struct Debugger {
     target: String,
     history_path: String,
-    readline: Editor<()>,
+    readline: Editor<(), FileHistory>,
     inferior: Option<Inferior>,
 }
 
@@ -16,7 +17,7 @@ impl Debugger {
         // TODO (milestone 3): initialize the DwarfData
 
         let history_path = format!("{}/.deet_history", std::env::var("HOME").unwrap());
-        let mut readline = Editor::<()>::new();
+        let mut readline = Editor::<(), FileHistory>::new().expect("Failed to create Editor");
         // Attempt to load history from ~/.deet_history if it exists
         let _ = readline.load_history(&history_path);
 
@@ -87,7 +88,7 @@ impl Debugger {
                     if line.trim().len() == 0 {
                         continue;
                     }
-                    self.readline.add_history_entry(line.as_str());
+                    let _ = self.readline.add_history_entry(line.as_str());
                     if let Err(err) = self.readline.save_history(&self.history_path) {
                         println!(
                             "Warning: failed to save history file at {}: {}",
