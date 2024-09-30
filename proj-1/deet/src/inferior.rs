@@ -68,7 +68,12 @@ impl Inferior {
     }
 
     /// Wakes up the inferior and waits until it stops or terminates.
-    pub fn wake_and_wait(&self) -> Result<Status, nix::Error> {
+    pub fn wake_and_wait(&mut self, breakpoints: &Vec<usize>) -> Result<Status, nix::Error> {
+        for breakpoint in breakpoints.iter() {
+            let _orig_byte = self
+                .write_byte(*breakpoint, 0xcc)
+                .expect(&format!("Failed to set breakpoint at {}", breakpoint));
+        }
         ptrace::cont(self.pid(), None)?;
         self.wait(None)
     }

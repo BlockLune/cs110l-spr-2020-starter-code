@@ -109,7 +109,12 @@ impl Debugger {
         // Milestone 1: make the inferior run
         // You may use self.inferior.as_mut().unwrap() to get a mutable reference
         // to the Inferior object
-        match self.inferior.as_mut().unwrap().wake_and_wait() {
+        match self
+            .inferior
+            .as_mut()
+            .unwrap()
+            .wake_and_wait(&self.breakpoints)
+        {
             Ok(status) => match status {
                 Status::Stopped(signal, instruction_ptr) => {
                     println!("Child stopped (signal {})", signal.as_str());
