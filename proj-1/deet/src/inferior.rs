@@ -1,4 +1,5 @@
 use crate::dwarf_data::DwarfData;
+use ::std::collections::HashMap;
 use nix::sys::ptrace;
 use nix::sys::signal;
 use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
@@ -35,6 +36,7 @@ fn child_traceme() -> Result<(), std::io::Error> {
 
 pub struct Inferior {
     child: Child,
+    bps: HashMap<usize, Option<u8>>,
 }
 
 impl Inferior {
@@ -51,12 +53,15 @@ impl Inferior {
                 let child_pid = nix::unistd::Pid::from_raw(child.id() as i32);
                 match waitpid(child_pid, None).ok()? {
                     WaitStatus::Stopped(_pid, _signal) => {
-                        let mut inferior = Inferior { child };
+                        let mut inferior = Inferior {
+                            child,
+                            bps: HashMap::new(),
+                        };
                         for breakpoint in breakpoints.iter() {
-                            // TODO: the original byte needs to be written back
-                            let _orig_byte = inferior
+                            let orig_byte = inferior
                                 .write_byte(*breakpoint, 0xcc)
                                 .expect(&format!("Failed to set breakpoint at {}", breakpoint));
+                            inferior.bps.insert(*breakpoint, Some(orig_byte));
                         }
                         Some(inferior)
                     }
@@ -69,11 +74,37 @@ impl Inferior {
 
     /// Wakes up the inferior and waits until it stops or terminates.
     pub fn wake_and_wait(&mut self, breakpoints: &Vec<usize>) -> Result<Status, nix::Error> {
+        // New breakpoints might be added before continuing
         for breakpoint in breakpoints.iter() {
-            let _orig_byte = self
+            let orig_byte = self
                 .write_byte(*breakpoint, 0xcc)
                 .expect(&format!("Failed to set breakpoint at {}", breakpoint));
+            self.bps.insert(*breakpoint, Some(orig_byte));
         }
+
+        // where i am
+        let mut regs = ptrace::getregs(self.pid())?;
+        let instruction_ptr = regs.rip as usize;
+
+        // if inferior stopped at a breakpoint
+        if let Some((&addr, &Some(orig_byte))) = self.bps.get_key_value(&(instruction_ptr - 1)) {
+            // restore the first byte of the instruction
+            let _ = self.write_byte(addr, orig_byte);
+            // set %rip = %rip - 1 to rewind the instruction pointer
+            regs.rip = (instruction_ptr - 1) as usize;
+            ptrace::setregs(self.pid(), regs)?;
+            // ptrace::step to go to next instruction
+            ptrace::step(self.pid(), None)?;
+            // wait for inferior to stop due to SIGTRAP
+            match self.wait(None).unwrap() {
+                Status::Exited(exit_code) => return Ok(Status::Exited(exit_code)),
+                Status::Signaled(signal) => return Ok(Status::Signaled(signal)),
+                Status::Stopped(_, _) => {
+                    self.write_byte(instruction_ptr - 1, 0xcc);
+                }
+            }
+        }
+
         ptrace::cont(self.pid(), None)?;
         self.wait(None)
     }
