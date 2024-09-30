@@ -98,18 +98,20 @@ impl Debugger {
                         self.dwarf_data.get_addr_for_function(None, &arg)
                     };
 
-                    if addr.is_some() {
-                        println!(
-                            "Set breakpoint {} at {:#x}",
-                            self.breakpoints.len(),
-                            addr.unwrap()
-                        );
-                        self.breakpoints.push(addr.unwrap());
+                    if let Some(addr) = addr {
+                        println!("Set breakpoint {} at {:#x}", self.breakpoints.len(), addr);
+                        self.breakpoints.push(addr);
+
+                        if let Some(inferior) = self.inferior.as_mut() {
+                            if let Err(err) = inferior.set_breakpoint(addr) {
+                                println!("Failed to set breakpoint in running inferior: {}", err);
+                            }
+                        }
                     } else {
                         println!(
                             "Failed to parse {} as valid address, line number or function name.",
                             arg
-                        )
+                        );
                     }
                 }
             }

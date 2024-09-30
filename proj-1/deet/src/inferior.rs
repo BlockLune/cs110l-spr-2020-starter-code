@@ -74,14 +74,6 @@ impl Inferior {
 
     /// Wakes up the inferior and waits until it stops or terminates.
     pub fn wake_and_wait(&mut self, breakpoints: &Vec<usize>) -> Result<Status, nix::Error> {
-        // New breakpoints might be added before continuing
-        for breakpoint in breakpoints.iter() {
-            let orig_byte = self
-                .write_byte(*breakpoint, 0xcc)
-                .expect(&format!("Failed to set breakpoint at {}", breakpoint));
-            self.bps.insert(*breakpoint, Some(orig_byte));
-        }
-
         // where i am
         let mut regs = ptrace::getregs(self.pid())?;
         let instruction_ptr = regs.rip as usize;
@@ -100,7 +92,7 @@ impl Inferior {
                 Status::Exited(exit_code) => return Ok(Status::Exited(exit_code)),
                 Status::Signaled(signal) => return Ok(Status::Signaled(signal)),
                 Status::Stopped(_, _) => {
-                    self.write_byte(instruction_ptr - 1, 0xcc);
+                    self.write_byte(instruction_ptr - 1, 0xcc)?;
                 }
             }
         }
@@ -170,5 +162,15 @@ impl Inferior {
             )?;
         }
         Ok(orig_byte as u8)
+    }
+
+    pub fn set_breakpoint(&mut self, addr: usize) -> Result<(), nix::Error> {
+        if self.bps.contains_key(&addr) {
+            return Ok(());
+        }
+
+        let orig_byte = self.write_byte(addr, 0xcc)?;
+        self.bps.insert(addr, Some(orig_byte));
+        Ok(())
     }
 }
