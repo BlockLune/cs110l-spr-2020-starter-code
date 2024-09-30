@@ -118,8 +118,9 @@ impl Debugger {
             Ok(status) => match status {
                 Status::Stopped(signal, instruction_ptr) => {
                     println!("Child stopped (signal {})", signal.as_str());
-                    let line_number = self.dwarf_data.get_line_from_addr(instruction_ptr).unwrap();
-                    println!("Stopped at {}", line_number);
+                    if let Some(line_number) = self.dwarf_data.get_line_from_addr(instruction_ptr) {
+                        println!("Stopped at {}", line_number);
+                    }
                 }
                 Status::Exited(code) => {
                     println!("Child exited (status {})", code);
