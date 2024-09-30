@@ -91,7 +91,7 @@ impl Inferior {
             // restore the first byte of the instruction
             let _ = self.write_byte(addr, orig_byte);
             // set %rip = %rip - 1 to rewind the instruction pointer
-            regs.rip = (instruction_ptr - 1) as usize;
+            regs.rip = (instruction_ptr - 1) as u64; // `usize`?
             ptrace::setregs(self.pid(), regs)?;
             // ptrace::step to go to next instruction
             ptrace::step(self.pid(), None)?;
