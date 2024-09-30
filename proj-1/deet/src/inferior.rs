@@ -1,8 +1,16 @@
+use crate::dwarf_data::DwarfData;
+use ::std::collections::HashMap;
 use nix::sys::ptrace;
 use nix::sys::signal;
 use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
 use nix::unistd::Pid;
-use std::process::Child;
+use std::mem::size_of;
+use std::os::unix::process::CommandExt;
+use std::process::{Child, Command};
+
+fn align_addr_to_word(addr: usize) -> usize {
+    addr & (-(size_of::<usize>() as isize) as usize)
+}
 
 pub enum Status {
     /// Indicates inferior stopped. Contains the signal that stopped the process, as well as the
@@ -28,18 +36,69 @@ fn child_traceme() -> Result<(), std::io::Error> {
 
 pub struct Inferior {
     child: Child,
+    bps: HashMap<usize, Option<u8>>,
 }
 
 impl Inferior {
     /// Attempts to start a new inferior process. Returns Some(Inferior) if successful, or None if
     /// an error is encountered.
-    pub fn new(target: &str, args: &Vec<String>) -> Option<Inferior> {
-        // TODO: implement me!
-        println!(
-            "Inferior::new not implemented! target={}, args={:?}",
-            target, args
-        );
-        None
+    pub fn new(target: &str, args: &Vec<String>, breakpoints: &Vec<usize>) -> Option<Inferior> {
+        let mut cmd = Command::new(target);
+        cmd.args(args);
+        unsafe {
+            cmd.pre_exec(child_traceme);
+        }
+        match cmd.spawn() {
+            Ok(child) => {
+                let child_pid = nix::unistd::Pid::from_raw(child.id() as i32);
+                match waitpid(child_pid, None).ok()? {
+                    WaitStatus::Stopped(_pid, _signal) => {
+                        let mut inferior = Inferior {
+                            child,
+                            bps: HashMap::new(),
+                        };
+                        for breakpoint in breakpoints.iter() {
+                            let orig_byte = inferior
+                                .write_byte(*breakpoint, 0xcc)
+                                .expect(&format!("Failed to set breakpoint at {}", breakpoint));
+                            inferior.bps.insert(*breakpoint, Some(orig_byte));
+                        }
+                        Some(inferior)
+                    }
+                    _ => None,
+                }
+            }
+            Err(_) => None,
+        }
+    }
+
+    /// Wakes up the inferior and waits until it stops or terminates.
+    pub fn wake_and_wait(&mut self, breakpoints: &Vec<usize>) -> Result<Status, nix::Error> {
+        // where i am
+        let mut regs = ptrace::getregs(self.pid())?;
+        let instruction_ptr = regs.rip as usize;
+
+        // if inferior stopped at a breakpoint
+        if let Some((&addr, &Some(orig_byte))) = self.bps.get_key_value(&(instruction_ptr - 1)) {
+            // restore the first byte of the instruction
+            let _ = self.write_byte(addr, orig_byte);
+            // set %rip = %rip - 1 to rewind the instruction pointer
+            regs.rip = (instruction_ptr - 1) as u64; // `usize`?
+            ptrace::setregs(self.pid(), regs)?;
+            // ptrace::step to go to next instruction
+            ptrace::step(self.pid(), None)?;
+            // wait for inferior to stop due to SIGTRAP
+            match self.wait(None).unwrap() {
+                Status::Exited(exit_code) => return Ok(Status::Exited(exit_code)),
+                Status::Signaled(signal) => return Ok(Status::Signaled(signal)),
+                Status::Stopped(_, _) => {
+                    self.write_byte(instruction_ptr - 1, 0xcc)?;
+                }
+            }
+        }
+
+        ptrace::cont(self.pid(), None)?;
+        self.wait(None)
     }
 
     /// Returns the pid of this inferior.
@@ -59,5 +118,59 @@ impl Inferior {
             }
             other => panic!("waitpid returned unexpected status: {:?}", other),
         })
+    }
+
+    /// Kills this inferior.
+    pub fn kill(&mut self) -> Result<(), std::io::Error> {
+        self.child.kill()
+    }
+
+    pub fn print_backtrace(&self, dwarf_data: &DwarfData) -> Result<(), nix::Error> {
+        let regs = ptrace::getregs(self.pid())?;
+        let mut instruction_ptr = regs.rip as usize;
+        let mut base_ptr = regs.rbp as usize;
+
+        loop {
+            let line_number = dwarf_data.get_line_from_addr(instruction_ptr).unwrap();
+            let function_name = dwarf_data.get_function_from_addr(instruction_ptr).unwrap();
+            println!("{} ({})", function_name, line_number);
+
+            if function_name == "main" {
+                break;
+            }
+
+            instruction_ptr =
+                ptrace::read(self.pid(), (base_ptr + 8) as ptrace::AddressType)? as usize;
+            base_ptr = ptrace::read(self.pid(), base_ptr as ptrace::AddressType)? as usize;
+        }
+
+        Ok(())
+    }
+
+    fn write_byte(&mut self, addr: usize, val: u8) -> Result<u8, nix::Error> {
+        let aligned_addr = align_addr_to_word(addr);
+        let byte_offset = addr - aligned_addr;
+        let word = ptrace::read(self.pid(), aligned_addr as ptrace::AddressType)? as u64;
+        let orig_byte = (word >> 8 * byte_offset) & 0xff;
+        let masked_word = word & !(0xff << 8 * byte_offset);
+        let updated_word = masked_word | ((val as u64) << 8 * byte_offset);
+        unsafe {
+            ptrace::write(
+                self.pid(),
+                aligned_addr as ptrace::AddressType,
+                updated_word as *mut std::ffi::c_void,
+            )?;
+        }
+        Ok(orig_byte as u8)
+    }
+
+    pub fn set_breakpoint(&mut self, addr: usize) -> Result<(), nix::Error> {
+        if self.bps.contains_key(&addr) {
+            return Ok(());
+        }
+
+        let orig_byte = self.write_byte(addr, 0xcc)?;
+        self.bps.insert(addr, Some(orig_byte));
+        Ok(())
     }
 }
