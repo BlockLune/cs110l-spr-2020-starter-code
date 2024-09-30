@@ -90,15 +90,26 @@ impl Debugger {
                         .print_backtrace(&self.dwarf_data);
                 }
                 DebuggerCommand::Break(arg) => {
-                    if arg.starts_with("*") {
-                        let addr_without_0x =
-                            parse_address(&arg[1..]).expect("Failed to parse the address");
+                    let addr = if arg.starts_with("*") {
+                        parse_address(&arg[1..])
+                    } else if let Ok(line_number) = usize::from_str_radix(&arg, 10) {
+                        self.dwarf_data.get_addr_for_line(None, line_number)
+                    } else {
+                        self.dwarf_data.get_addr_for_function(None, &arg)
+                    };
+
+                    if addr.is_some() {
                         println!(
                             "Set breakpoint {} at {:#x}",
                             self.breakpoints.len(),
-                            addr_without_0x
+                            addr.unwrap()
                         );
-                        self.breakpoints.push(addr_without_0x);
+                        self.breakpoints.push(addr.unwrap());
+                    } else {
+                        println!(
+                            "Failed to parse {} as valid address, line number or function name.",
+                            arg
+                        )
                     }
                 }
             }
